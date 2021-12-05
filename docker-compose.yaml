@@ -1,0 +1,31 @@
+---
+version: '3.1'
+
+services:
+    prometheus:
+        image: prom/prometheus:v2.28.1
+        volumes:
+            - ./prometheus/prometheus1.yaml:/etc/prometheus/prometheus1.yaml
+            - ./prometheus/rules.yaml:/etc/prometheus/server/rules.yaml
+            - ./storage/prometheus-1:/prometheus
+        command:
+            - '--config.file=/etc/prometheus/prometheus1.yaml'
+            - '--storage.tsdb.path=/prometheus'
+            - '--storage.tsdb.max-block-duration=30m'
+            - '--storage.tsdb.min-block-duration=30m'
+            - '--web.enable-lifecycle'
+            - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+            - '--web.console.templates=/usr/share/prometheus/consoles'
+        links:
+            - exporter:exporter
+        ports:
+            - 9080:9090
+        restart: always
+
+    exporter:
+      image: exporter
+      build: ./exporter/.
+      ports:
+          - 9090:9090
+      restart: always
+
