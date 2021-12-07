@@ -33,17 +33,16 @@ var (
 	}
 )
 
-func decodeSensorName(name string) (string, string, string, string) {
-	return name[:2], name[2:6], name[6:], name[:6]
+func decodeSensorName(name string) (string, string, string) {
+	return name[:2], name[2:6], name[:6]
 }
 
 func labels(measurement SensorReading) map[string]string {
-	sensorType, description, numericId, prefix := decodeSensorName(measurement.Id)
+	sensorType, description, prefix := decodeSensorName(measurement.Id)
 	labels := make(map[string]string)
 	labels["type"] = sensorTypes[sensorType]
-	labels["id"] = numericId
+	labels["id"] = measurement.Id
 	labels["prefix"] = prefix
-	labels["key"] = measurement.Id
 	labels["address"] = measurement.Address
 	for name, value := range sensorDescriptions[description] {
 		labels[name] = value
