@@ -14,6 +14,16 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+type sensorReading struct {
+	ID           string
+	Address      string
+	Avg          string
+	Unit         string
+	Date         string
+	DateStandard string
+	Value        float64
+}
+
 const (
 	CmlOpendataUrl        = "http://opendata-cml.qart.pt:8080/lastmeasurements"
 	WrongMeasurementValue = -99
@@ -40,7 +50,7 @@ var (
 		Help: "Amount of time it took to download metrics in milliseconds",
 	})
 	executionTime = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "lx_sensor_execution_time",
+		Name: "lx_sensor_pooling_execution_time",
 		Help: "Amount of time it took to pool and update metrics in milliseconds",
 	})
 	totalMeasurements = promauto.NewGauge(prometheus.GaugeOpts{
@@ -49,7 +59,7 @@ var (
 	})
 )
 
-func downloadMeasurements() ([]SensorReading, error) {
+func downloadMeasurements() ([]sensorReading, error) {
 	resp, err := http.Get(CmlOpendataUrl)
 	if err != nil {
 		return nil, err
@@ -64,7 +74,7 @@ func downloadMeasurements() ([]SensorReading, error) {
 	if err != nil {
 		return nil, err
 	}
-	var measurements []SensorReading
+	var measurements []sensorReading
 	err = json.Unmarshal(body, &measurements)
 	if err != nil {
 		return nil, err
@@ -72,8 +82,8 @@ func downloadMeasurements() ([]SensorReading, error) {
 	return measurements, nil
 }
 
-func updateMetric(measurement SensorReading) {
-	key := measurement.Id
+func updateMetric(measurement sensorReading) {
+	key := measurement.ID
 	gauge := cache[key]
 	if gauge == nil {
 		opts := prometheus.GaugeOpts{
