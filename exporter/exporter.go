@@ -18,14 +18,14 @@ type sensorReading struct {
 	ID           string
 	Address      string
 	Avg          string
-	Unit         string
 	Date         string
 	DateStandard string
+	Unit         string
 	Value        float64
 }
 
 const (
-	CmlOpendataUrl        = "http://opendata-cml.qart.pt:8080/lastmeasurements"
+	CmlOpenDataURL        = "http://opendata-cml.qart.pt:8080/lastmeasurements"
 	WrongMeasurementValue = -99
 	PollingInterval       = 5 * time.Minute
 )
@@ -37,9 +37,9 @@ var (
 		Name: "lx_sensor_pooling_runs",
 		Help: "The total number of runs",
 	})
-	badRead = promauto.NewCounter(prometheus.CounterOpts{
+	badRead = promauto.NewGauge(prometheus.GaugeOpts{
 		Name: "lx_sensor_pooling_measurement_error",
-		Help: "The total number of bad reads",
+		Help: "The number of bad reads",
 	})
 	downloadError = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "lx_sensor_pooling_download_error",
@@ -59,8 +59,30 @@ var (
 	})
 )
 
+func newGauge(measurement sensorReading, key string) prometheus.Gauge {
+	gauge := cache[key]
+	if gauge == nil {
+		opts := prometheus.GaugeOpts{
+			Name:        "lx_sensor_measurement",
+			Help:        "Sensor measurement",
+			ConstLabels: labels(measurement),
+		}
+		gauge = prometheus.NewGauge(opts)
+		prometheus.MustRegister(gauge)
+		cache[key] = gauge
+	}
+	return gauge
+}
+
+func updateMetric(measurement sensorReading) {
+	key := measurement.ID
+	gauge := newGauge(measurement, key)
+	gauge.Set(measurement.Value)
+}
+
 func downloadMeasurements() ([]sensorReading, error) {
-	resp, err := http.Get(CmlOpendataUrl)
+	start := time.Now()
+	resp, err := http.Get(CmlOpenDataURL)
 	if err != nil {
 		return nil, err
 	}
@@ -79,45 +101,30 @@ func downloadMeasurements() ([]sensorReading, error) {
 	if err != nil {
 		return nil, err
 	}
+	downloadTime.Set(float64(time.Since(start).Milliseconds()))
 	return measurements, nil
-}
-
-func updateMetric(measurement sensorReading) {
-	key := measurement.ID
-	gauge := cache[key]
-	if gauge == nil {
-		opts := prometheus.GaugeOpts{
-			Name:        "lx_sensor_measurement",
-			Help:        "Sensor measurement",
-			ConstLabels: labels(measurement),
-		}
-		gauge = prometheus.NewGauge(opts)
-		cache[key] = gauge
-		prometheus.MustRegister(gauge)
-	}
-	gauge.Set(measurement.Value)
 }
 
 func recordMetrics() {
 	start := time.Now()
 	measurements, err := downloadMeasurements()
-	elapsed := time.Since(start)
 	if err != nil {
 		downloadError.Inc()
 		log.Println(err)
 		return
 	}
-	downloadTime.Set(float64(elapsed.Milliseconds()))
 	totalMeasurements.Set(float64(len(measurements)))
+	badReads := 0
 	for _, measurement := range measurements {
 		if measurement.Value == WrongMeasurementValue {
-			badRead.Inc()
+			badReads++
 			continue
 		}
 		updateMetric(measurement)
 	}
+	badRead.Set(float64(badReads))
 	runs.Inc()
-	elapsed = time.Since(start)
+	elapsed := time.Since(start)
 	executionTime.Set(float64(elapsed.Milliseconds()))
 }
 
