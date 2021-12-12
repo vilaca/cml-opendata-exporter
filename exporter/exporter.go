@@ -18,8 +18,6 @@ type sensorReading struct {
 	ID           string
 	Address      string
 	Avg          string
-	Date         string
-	DateStandard string
 	Unit         string
 	Value        float64
 }
@@ -59,27 +57,6 @@ var (
 	})
 )
 
-func newGauge(measurement sensorReading, key string) prometheus.Gauge {
-	gauge := cache[key]
-	if gauge == nil {
-		opts := prometheus.GaugeOpts{
-			Name:        "lx_sensor_measurement",
-			Help:        "Sensor measurement",
-			ConstLabels: labels(measurement),
-		}
-		gauge = prometheus.NewGauge(opts)
-		prometheus.MustRegister(gauge)
-		cache[key] = gauge
-	}
-	return gauge
-}
-
-func updateMetric(measurement sensorReading) {
-	key := measurement.ID
-	gauge := newGauge(measurement, key)
-	gauge.Set(measurement.Value)
-}
-
 func downloadMeasurements() ([]sensorReading, error) {
 	start := time.Now()
 	resp, err := http.Get(CmlOpenDataURL)
@@ -105,6 +82,21 @@ func downloadMeasurements() ([]sensorReading, error) {
 	return measurements, nil
 }
 
+func newGauge(measurement sensorReading, key string) prometheus.Gauge {
+	gauge := cache[key]
+	if gauge == nil {
+		opts := prometheus.GaugeOpts{
+			Name:        "lx_sensor_measurement",
+			Help:        "Sensor measurement",
+			ConstLabels: labels(measurement),
+		}
+		gauge = prometheus.NewGauge(opts)
+		prometheus.MustRegister(gauge)
+		cache[key] = gauge
+	}
+	return gauge
+}
+
 func recordMetrics() {
 	start := time.Now()
 	measurements, err := downloadMeasurements()
@@ -126,6 +118,12 @@ func recordMetrics() {
 	runs.Inc()
 	elapsed := time.Since(start)
 	executionTime.Set(float64(elapsed.Milliseconds()))
+}
+
+func updateMetric(measurement sensorReading) {
+	key := measurement.ID
+	gauge := newGauge(measurement, key)
+	gauge.Set(measurement.Value)
 }
 
 func main() {

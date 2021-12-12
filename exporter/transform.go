@@ -47,6 +47,5 @@ func labels(measurement sensorReading) map[string]string {
 	labels["id"] = measurement.ID
 	labels["address"] = measurement.Address
 	labels["unit"] = measurement.Unit
-	labels["date"] = measurement.Date + " " + measurement.DateStandard
 	return labels
 }
